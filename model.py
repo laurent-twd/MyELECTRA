@@ -359,6 +359,7 @@ class MyELECTRA:
                 iterations += 1
                 if (iterations % 5000) == 0 and STORAGE_BUCKET != None:
                     self.ckpt_manager.save()
+                    self.save_model()
                     self.upload_to_cloud(STORAGE_BUCKET)
             self.ckpt_manager.save()
 
@@ -387,5 +388,8 @@ class MyELECTRA:
         return parameters
 
     def upload_to_cloud(self, STORAGE_BUCKET):
-        pass
+        command = "gsutil -m cp -r {} {}".format(os.path.join(self.path_model, "tf_ckpts"), STORAGE_BUCKET)
+        os.system(command)
 
+        command = "gsutil -m cp -r {} {}".format(os.path.join(self.path_model, "parameters.json"), STORAGE_BUCKET)
+        os.system(command)
