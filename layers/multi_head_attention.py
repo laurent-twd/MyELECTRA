@@ -3,6 +3,7 @@ import math
 import string
 
 import numpy as np
+import tensorflow as tf
 
 from tensorflow.python.framework import tensor_shape
 from tensorflow.python.keras import constraints
