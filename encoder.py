@@ -9,6 +9,7 @@ from layers.self_attention_mask import SelfAttentionMask
 from layers.transformer_encoder_block import TransformerEncoderBlock
 
 from tensorflow.python.framework import ops
+from tensorflow.python.ops import math_ops
 
 
 def gelu(features, approximate=False, name=None):
