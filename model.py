@@ -254,7 +254,7 @@ class MyELECTRA:
         
         return batch_loss
 
-    def fit(self, corpus, epochs, batch_size, masking_rate = 0.15, min_count = 1):
+    def fit(self, corpus, epochs, batch_size, masking_rate = 0.15, min_count = 1, STORAGE_BUCKET = None):
         
         """
         Fits the model:
@@ -357,12 +357,11 @@ class MyELECTRA:
                 discriminator_loss = self.train_step_discriminator(gen_words, gen_chars, enc_padding_mask, adversarial_mask)
                 progbar.add(inp_words.shape[0], values = [('Gen. Loss', generator_loss), ('Disc. Loss', discriminator_loss)])
                 iterations += 1
-                if (iterations % 5000) == 0:
+                if (iterations % 5000) == 0 and STORAGE_BUCKET != None:
                     self.ckpt_manager.save()
-                    STORAGE_BUCKET = "gs://claims_descriptions/electra/"
-                    !gsutil -m cp -r /content/parameters.json $STORAGE_BUCKET
-                   
+                    self.upload_to_cloud(STORAGE_BUCKET)
             self.ckpt_manager.save()
+
 
     def save_model(self):
         
@@ -386,4 +385,7 @@ class MyELECTRA:
             json.dump(parameters, params)
 
         return parameters
+
+    def upload_to_cloud(self, STORAGE_BUCKET):
+        pass
 
