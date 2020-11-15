@@ -7,7 +7,6 @@ from layers.on_device_embedding import OnDeviceEmbedding
 from layers.position_embedding import PositionEmbedding
 from layers.self_attention_mask import SelfAttentionMask
 from layers.transformer_encoder_block import TransformerEncoderBlock
-from layers.multi_head_attention import MultiHeadAttention
 
 class BertEncoder(tf.keras.Model):
   """Bi-directional Transformer-based encoder network.

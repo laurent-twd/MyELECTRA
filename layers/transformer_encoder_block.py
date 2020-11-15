@@ -15,6 +15,7 @@
 """Keras-based TransformerEncoder block layer."""
 
 import tensorflow as tf
+from layers.multi_head_attention import MultiHeadAttention
 #from layers.multi_head_attention import MultiHeadAttention
 
 class TransformerEncoderBlock(tf.keras.layers.Layer):
@@ -139,7 +140,7 @@ class TransformerEncoderBlock(tf.keras.layers.Layer):
         activity_regularizer=self._activity_regularizer,
         kernel_constraint=self._kernel_constraint,
         bias_constraint=self._bias_constraint)
-    self._attention_layer = tf.keras.layers.MultiHeadAttention(
+    self._attention_layer = MultiHeadAttention(
         num_heads=self._num_heads,
         key_dim=self._attention_head_size,
         dropout=self._attention_dropout,
