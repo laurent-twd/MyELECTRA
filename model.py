@@ -2,6 +2,7 @@ import os
 import json
 
 import tensorflow as tf
+import tensorflow_probability as tfp
 import numpy as np
 import random
 
@@ -54,7 +55,7 @@ class MyELECTRA:
         self.generator = BertEncoder(vocab_size = MAX_VOCAB_SIZE,
                                     output_dim = MAX_VOCAB_SIZE,
                                     hidden_size = self.d_model,
-                                    num_layers = self.num_layers,
+                                    num_layers = int(self.num_layers / 3),
                                     num_attention_heads = 4,
                                     max_sequence_length = self.pe_input,
                                     inner_dim = self.dff)
@@ -225,7 +226,7 @@ class MyELECTRA:
 
             mask_logits = tf.concat([tf.zeros(self.n_special_tokens + self.vocab_size), tf.ones(MAX_VOCAB_SIZE  - self.n_special_tokens - self.vocab_size)], 0)
             gen_logits += mask_logits[tf.newaxis, tf.newaxis, :] * (-1e9)
-            gen_words = tf.compat.v1.distributions.Categorical(logits = gen_logits).sample()
+            gen_words = tfp.distributions.Categorical(logits = gen_logits).sample()
             loss = tf.keras.losses.sparse_categorical_crossentropy(tar_words, gen_logits, from_logits = True)
             loss = tf.reduce_sum(loss * language_mask, axis = 1) / tf.reduce_sum(language_mask, axis = 1)
             batch_loss = tf.reduce_mean(loss)
