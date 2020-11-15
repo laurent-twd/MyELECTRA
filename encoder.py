@@ -8,6 +8,22 @@ from layers.position_embedding import PositionEmbedding
 from layers.self_attention_mask import SelfAttentionMask
 from layers.transformer_encoder_block import TransformerEncoderBlock
 
+from tensorflow.python.framework import ops
+
+
+def gelu(features, approximate=False, name=None):
+
+  with ops.name_scope(name, "Gelu", [features]):
+    features = ops.convert_to_tensor(features, name="features")
+    if approximate:
+      coeff = math_ops.cast(0.044715, features.dtype)
+      return 0.5 * features * (
+          1.0 + math_ops.tanh(0.7978845608028654 *
+                              (features + coeff * math_ops.pow(features, 3))))
+    else:
+      return 0.5 * features * (1.0 + math_ops.erf(
+          features / math_ops.cast(1.4142135623730951, features.dtype)))
+
 class BertEncoder(tf.keras.Model):
   """Bi-directional Transformer-based encoder network.
 
@@ -65,7 +81,7 @@ class BertEncoder(tf.keras.Model):
       num_attention_heads=4,
       max_sequence_length=150,
       inner_dim=512,
-      inner_activation=lambda x: tf.keras.activations.gelu(x, approximate=True),
+      inner_activation=lambda x: gelu(x, approximate=True),
       output_dropout=0.1,
       attention_dropout=0.1,
       initializer=tf.keras.initializers.TruncatedNormal(stddev=0.02),
