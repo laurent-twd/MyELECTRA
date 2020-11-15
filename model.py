@@ -345,16 +345,23 @@ class MyELECTRA:
         ## Training
         print("Training...")
         self.fitted = True
+        self.save_model()
         for _ in range(epochs):
             set_index = set(range(len(source_text)))
             progbar = tf.keras.utils.Progbar(len(source_text))
+            iterations = 0
             while len(set_index) > 0:
                 inp_words, inp_chars, tar_words, language_mask = self.get_next_batch(batch_size, set_index, source_text, indexed_text, masking_rate)
                 generator_loss, gen_words = self.train_step_generator(inp_words, inp_chars, tar_words, language_mask)
                 gen_words, gen_chars, enc_padding_mask, adversarial_mask = self.get_input_discriminator(inp_words, gen_words, language_mask)
                 discriminator_loss = self.train_step_discriminator(gen_words, gen_chars, enc_padding_mask, adversarial_mask)
                 progbar.add(inp_words.shape[0], values = [('Gen. Loss', generator_loss), ('Disc. Loss', discriminator_loss)])
-
+                iterations += 1
+                if (iterations % 5000) == 0:
+                    self.ckpt_manager.save()
+                    STORAGE_BUCKET = "gs://claims_descriptions/electra/"
+                    !gsutil -m cp -r /content/parameters.json $STORAGE_BUCKET
+                   
             self.ckpt_manager.save()
 
     def save_model(self):
