@@ -21,3 +21,4 @@ self = MyELECTRA(parameters, path_model = os.path.join(path, 'model'))
 model.fit(corpus[0], batch_size = 32, epochs = 1, masking_rate = .15)
 
 
+corpus = corpus[0]
