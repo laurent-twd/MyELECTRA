@@ -54,9 +54,9 @@ class MyELECTRA:
         # Model
         self.generator = BertEncoder(vocab_size = MAX_VOCAB_SIZE,
                                     output_dim = MAX_VOCAB_SIZE,
-                                    hidden_size = self.d_model,
+                                    hidden_size = int(self.d_model / 3),
                                     num_layers = int(self.num_layers / 3),
-                                    num_attention_heads = 4,
+                                    num_attention_heads = int(4 / 3),
                                     max_sequence_length = self.pe_input,
                                     inner_dim = self.dff)
 
