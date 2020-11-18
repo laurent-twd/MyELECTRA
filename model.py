@@ -394,6 +394,9 @@ class MyELECTRA:
             'dff' : self.dff,
             'num_layers' : self.num_layers,
             'pe_input' : self.pe_input,
+            'filters' : self.filters,
+            'd_embeddings' : self.d_embeddings,
+            'num_highway_layers' : self.num_highway_layers
         }
         
         with open(os.path.join(self.path_model, 'parameters.json'), 'w') as params:
