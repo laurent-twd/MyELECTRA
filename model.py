@@ -19,7 +19,7 @@ MAX_N_CHARS = 2000
 
 class MyELECTRA:
 
-    def __init__(self, parameters, path_model):
+    def __init__(self, parameters, path_model, training):
         
         """
         Parameters
@@ -43,6 +43,7 @@ class MyELECTRA:
         self.num_highway_layers = parameters['num_highway_layers']
   
         self.fitted = False
+        self.training = training
 
         #try:
          
@@ -56,6 +57,14 @@ class MyELECTRA:
             self.vocab_size = parameters['vocab_size']
 
         # Model
+        if self.training:
+            output_dropout = 0.1
+            attention_dropout = 0.1
+            
+        else:
+            output_dropout = 0.
+            attention_dropout = 0.   
+
         self.generator = BertEncoder(vocab_size = MAX_VOCAB_SIZE,
                                     n_chars = MAX_N_CHARS,
                                     filters = self.filters,
@@ -66,7 +75,9 @@ class MyELECTRA:
                                     num_highway_layers = self.num_highway_layers,
                                     num_attention_heads = int(4 / 3),
                                     max_sequence_length = self.pe_input,
-                                    inner_dim = self.dff)
+                                    inner_dim = self.dff,
+                                    output_dropout = output_dropout,
+                                    attention_dropout = attention_dropout)
 
         # Model
         self.discriminator = BertEncoder(vocab_size = MAX_VOCAB_SIZE,
@@ -79,7 +90,9 @@ class MyELECTRA:
                                     num_highway_layers = self.num_highway_layers,
                                     num_attention_heads = 4 ,
                                     max_sequence_length = self.pe_input,
-                                    inner_dim = self.dff)
+                                    inner_dim = self.dff,
+                                    output_dropout = output_dropout,
+                                    attention_dropout = attention_dropout)
 
         # Optimizer
 
