@@ -227,12 +227,6 @@ class BertEncoder(tf.keras.Model):
     if embedding_projection is not None:
       self._embedding_projection = embedding_projection
 
-  def get_embedding_table(self):
-    return self._embedding_layer.embeddings
-
-  def get_embedding_layer(self):
-    return self._embedding_layer
-
   def get_config(self):
     return dict(self._config._asdict())
 
