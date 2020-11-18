@@ -3,7 +3,6 @@ from absl import logging
 import tensorflow as tf
 
 from layers.masked_lm import MaskedLM
-from layers.on_device_embedding import OnDeviceEmbedding
 from layers.position_embedding import PositionEmbedding
 from layers.self_attention_mask import SelfAttentionMask
 from layers.transformer_encoder_block import TransformerEncoderBlock
@@ -78,9 +77,13 @@ class BertEncoder(tf.keras.Model):
   def __init__(
       self,
       vocab_size,
+      n_chars,
+      filters,
       output_dim,
+      d_embeddings = 64,
       hidden_size=128,
       num_layers=12,
+      num_highway_layers = 2,
       num_attention_heads=4,
       max_sequence_length=150,
       inner_dim=512,
@@ -95,23 +98,22 @@ class BertEncoder(tf.keras.Model):
     activation = tf.keras.activations.get(inner_activation)
     initializer = tf.keras.initializers.get(initializer)
 
-    word_ids = tf.keras.layers.Input(
-        shape=(None,), dtype=tf.int32, name='input_word_ids')
+    char_ids = tf.keras.layers.Input(
+        shape=(None, None), dtype=tf.int32, name='input_char_ids')
     mask = tf.keras.layers.Input(
         shape=(None,), dtype=tf.int32, name='input_mask')
 
-    if embedding_width is None:
-      embedding_width = hidden_size
+    charCNN = CharCNN(d_embeddings, n_chars, filters)
+    size_output_charCNN = sum([k for k in charCNN.filters.values()])
 
-    if embedding_layer is None:
-      embedding_layer_inst = OnDeviceEmbedding(
-          vocab_size=vocab_size,
-          embedding_width=embedding_width,
-          initializer=initializer,
-          name='word_embeddings')
-    else:
-      embedding_layer_inst = embedding_layer
-    word_embeddings = embedding_layer_inst(word_ids)
+    highway_layers = [HighwayLayer(input_dim=size_output_charCNN, 
+                                  activation=lambda x: gelu(x, approximate=True)) for _ in range(num_highway_layers)]
+
+    word_embeddings = charCNN(char_ids)
+    for i in range(num_highway_layers):
+      word_embeddings = highway_layers[i](word_embeddings)
+
+    word_embeddings = tf.keras.layers.Dense(hidden_size)(word_embeddings)
 
     # Always uses dynamic slicing for simplicity.
     position_embedding_layer = PositionEmbedding(
@@ -193,7 +195,7 @@ class BertEncoder(tf.keras.Model):
     # can assign attributes to `self` - note that all `self` assignments are
     # below this line.
     super(BertEncoder, self).__init__(
-        inputs=[word_ids, mask], outputs=outputs, **kwargs)
+        inputs=[char_ids, mask], outputs=outputs, **kwargs)
 
     config_dict = {
         'vocab_size': vocab_size,
@@ -221,7 +223,6 @@ class BertEncoder(tf.keras.Model):
     self._pooler_layer = pooler_layer
     self._transformer_layers = transformer_layers
     self._embedding_norm_layer = embedding_norm_layer
-    self._embedding_layer = embedding_layer_inst
     self._position_embedding_layer = position_embedding_layer
     if embedding_projection is not None:
       self._embedding_projection = embedding_projection

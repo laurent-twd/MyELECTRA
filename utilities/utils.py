@@ -8,8 +8,6 @@ import re
 from collections import Counter
 import itertools
 
-import scipy.signal as ss
-
 regexps = {
     '<PHN>' : r'(\d{3}[-\.\s]??\d{3}[-\.\s]??\d{4}|\(\d{3}\)\s*\d{3}[-\.\s]??\d{4})',
     '<SSN>' : r'\d{3}-?\d{2}-?\d{4}',

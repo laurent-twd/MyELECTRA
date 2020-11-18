@@ -15,6 +15,7 @@ from custom_schedule import CustomSchedule
 from copy import deepcopy
 
 MAX_VOCAB_SIZE = 250000
+MAX_N_CHARS = 2000
 
 class MyELECTRA:
 
@@ -37,6 +38,9 @@ class MyELECTRA:
         self.dff = parameters['dff']
         self.num_layers = parameters['num_layers']
         self.pe_input = parameters['pe_input']
+        self.filters = parameters['filters']
+        self.d_embeddings = parameters['d_embeddings']
+        self.num_highway_layers = parameters['num_highway_layers']
   
         self.fitted = False
 
@@ -53,19 +57,27 @@ class MyELECTRA:
 
         # Model
         self.generator = BertEncoder(vocab_size = MAX_VOCAB_SIZE,
+                                    n_chars = MAX_N_CHARS,
+                                    filters = self.filters,
                                     output_dim = MAX_VOCAB_SIZE,
+                                    d_embeddings = self.d_embeddings,
                                     hidden_size = int(self.d_model / 3),
                                     num_layers = int(self.num_layers / 3),
+                                    num_highway_layers = self.num_highway_layers,
                                     num_attention_heads = int(4 / 3),
                                     max_sequence_length = self.pe_input,
                                     inner_dim = self.dff)
 
         # Model
         self.discriminator = BertEncoder(vocab_size = MAX_VOCAB_SIZE,
+                                    n_chars = MAX_N_CHARS,
+                                    filters = self.filters,
                                     output_dim = 1,
+                                    d_embeddings = self.d_embeddings,
                                     hidden_size = self.d_model,
                                     num_layers = self.num_layers,
-                                    num_attention_heads = 4,
+                                    num_highway_layers = self.num_highway_layers,
+                                    num_attention_heads = 4 ,
                                     max_sequence_length = self.pe_input,
                                     inner_dim = self.dff)
 
@@ -222,7 +234,7 @@ class MyELECTRA:
         enc_padding_mask = create_padding_mask(inp_words)
 
         with tf.GradientTape() as tape:
-            gen_logits = self.generator([inp_words, enc_padding_mask])['logits']
+            gen_logits = self.generator([inp_chars, enc_padding_mask])['logits']
 
             mask_logits = tf.concat([tf.zeros(self.n_special_tokens + self.vocab_size), tf.ones(MAX_VOCAB_SIZE  - self.n_special_tokens - self.vocab_size)], 0)
             gen_logits += mask_logits[tf.newaxis, tf.newaxis, :] * (-1e9)
@@ -241,7 +253,7 @@ class MyELECTRA:
     def train_step_discriminator(self, gen_words, gen_chars, enc_padding_mask, adversarial_mask):
 
         with tf.GradientTape() as tape:
-            disc_logits = self.discriminator([gen_words, enc_padding_mask])['logits']
+            disc_logits = self.discriminator([gen_chars, enc_padding_mask])['logits']
             probs = tf.squeeze(tf.math.sigmoid(disc_logits + 1e-9), axis = 2)
             loss = adversarial_mask * tf.math.log(probs) + (1 - adversarial_mask) * tf.math.log(1. - probs)
             padding_mask = 1. - enc_padding_mask

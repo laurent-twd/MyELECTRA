@@ -10,7 +10,7 @@ class CharCNN(tf.keras.layers.Layer):
         self.embedding = tf.keras.layers.Embedding(self.n_chars, self.d_embeddings)
         self.cnn_layers = {}
         for kernel_size, n_filters in self.filters.items():
-            self.cnn_layers['size_'.format(kernel_size)] = tf.keras.layers.Conv1D(
+            self.cnn_layers["size_{}".format(kernel_size)] = tf.keras.layers.Conv1D(
                 filters = n_filters,
                 kernel_size = kernel_size,
                 strides=1,
@@ -22,15 +22,13 @@ class CharCNN(tf.keras.layers.Layer):
         
         char_embeddings = []
         for kernel_size, _ in self.filters.items():
-            x = self.cnn_layers['size_'.format(kernel_size)](embedding_inputs)
-            x = tf.reduce_max(x, axis = 1)
+            x = self.cnn_layers['size_{}'.format(kernel_size)](embedding_inputs)
+            x = tf.reduce_max(x, axis = 2)
             char_embeddings.append(x)
-        char_embeddings = tf.concat(char_embeddings, axis =  1)
+        char_embeddings = tf.concat(char_embeddings, axis =  2)
 
         return char_embeddings
 
-
-
-            
+        
 
 
