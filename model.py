@@ -92,7 +92,7 @@ class MyELECTRA:
                                         generator_optimizer = self.generator_optimizer,
                                         discriminator_optimizer = self.discriminator_optimizer)
         checkpoint_path = os.path.join(self.path_model, 'tf_ckpts')
-        self.ckpt_manager = tf.train.CheckpointManager(self.ckpt, checkpoint_path, max_to_keep=5)
+        self.ckpt_manager = tf.train.CheckpointManager(self.ckpt, checkpoint_path, max_to_keep=1)
 
         if self.ckpt_manager.latest_checkpoint:
             self.ckpt.restore(self.ckpt_manager.latest_checkpoint)
