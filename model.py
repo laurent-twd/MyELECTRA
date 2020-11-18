@@ -14,7 +14,7 @@ from utilities.utils import create_padding_mask
 from custom_schedule import CustomSchedule
 from copy import deepcopy
 
-MAX_VOCAB_SIZE = 250000
+MAX_VOCAB_SIZE = 125000
 MAX_N_CHARS = 2000
 
 class MyELECTRA:
@@ -211,10 +211,8 @@ class MyELECTRA:
 
         return inp_words, inp_chars, tar_words, language_mask
 
-    def get_input_discriminator(self, inp_words, gen_words, language_mask):
+    def get_input_discriminator(self, inp_chars, tar_words, gen_words, language_mask):
 
-        enc_padding_mask = create_padding_mask(inp_words)
-        gen_words = tf.where(tf.cast(language_mask, tf.bool), gen_words, inp_words)
         get_text = np.vectorize(lambda x: self.get_word_index(x))
         gen_text = list(get_text(gen_words))
         max_len_char = 20 
@@ -223,10 +221,14 @@ class MyELECTRA:
         gen_chars = list(map(lambda x: self.pad_char(x, max_len, max_len_char)[tf.newaxis, :, :], gen_text))
         gen_chars = tf.concat(gen_chars, axis = 0)
 
-        gen_is_true = tf.cast(inp_words == gen_words, dtype = tf.float32)
+        char_language_mask = tf.tile(language_mask[:, :, tf.newaxis], [1, 1, max_len_char])
+        char_language_mask = tf.cast(char_language_mask, dtype = tf.bool)
+        gen_chars = tf.where(char_language_mask, gen_chars, inp_chars)
+
+        gen_is_true = tf.cast(tar_words == gen_words, dtype = tf.float32)
         adversarial_mask = tf.maximum(0., language_mask - gen_is_true)
 
-        return gen_words, gen_chars, enc_padding_mask, adversarial_mask
+        return gen_words, gen_chars, adversarial_mask
 
     @tf.function
     def train_step_generator(self, inp_words, inp_chars, tar_words, language_mask):
@@ -247,7 +249,7 @@ class MyELECTRA:
             gradients = tape.gradient(batch_loss, variables)    
             self.generator_optimizer.apply_gradients(zip(gradients, variables))
         
-        return batch_loss, gen_words
+        return batch_loss, gen_words, enc_padding_mask
                
     @tf.function
     def train_step_discriminator(self, gen_words, gen_chars, enc_padding_mask, adversarial_mask):
@@ -334,7 +336,7 @@ class MyELECTRA:
                 self.idx2word[i + self.n_special_tokens] = word  
             self.list_vocabulary = list(self.vocabulary)
 
-            characters_corpus = set(Counter(''.join(list(self.vocabulary) + ['[BOS]' , '[EOS]'])).keys())
+            characters_corpus = set(Counter(''.join(list(self.vocabulary) + ['[BOS]' , '[EOS]', '[MASK]'])).keys())
             self.char2idx = {}
             for i, char in enumerate(characters_corpus):
                 self.char2idx[char] = i + self.n_special_characters
@@ -364,8 +366,8 @@ class MyELECTRA:
             iterations = 0
             while len(set_index) > 0:
                 inp_words, inp_chars, tar_words, language_mask = self.get_next_batch(batch_size, set_index, source_text, indexed_text, masking_rate)
-                generator_loss, gen_words = self.train_step_generator(inp_words, inp_chars, tar_words, language_mask)
-                gen_words, gen_chars, enc_padding_mask, adversarial_mask = self.get_input_discriminator(inp_words, gen_words, language_mask)
+                generator_loss, gen_words, enc_padding_mask = self.train_step_generator(inp_words, inp_chars, tar_words, language_mask)
+                gen_words, gen_chars, adversarial_mask = self.get_input_discriminator(inp_chars, tar_words, gen_words, language_mask)
                 discriminator_loss = self.train_step_discriminator(gen_words, gen_chars, enc_padding_mask, adversarial_mask)
                 progbar.add(inp_words.shape[0], values = [('Gen. Loss', generator_loss), ('Disc. Loss', discriminator_loss)])
                 iterations += 1
