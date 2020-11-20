@@ -191,9 +191,9 @@ class MyELECTRA:
         
         inp_sentence = deepcopy(tar_sentence)
         inp_indexes = deepcopy(tar_indexes)
-        length = len(tar_sentence) - 2 
+        length = len(tar_sentence)
         number_of_words_masked = int(masking_rate * length)
-        masked_indexes = np.random.choice(range(1, length + 1), number_of_words_masked, replace = False)
+        masked_indexes = np.random.choice(range(0, length), number_of_words_masked, replace = False)
         type_mask = np.random.choice([0, 1, 2], size = number_of_words_masked, replace = True, p = [0.8, 0.1, 0.1])
         for i in range(number_of_words_masked):
             if type_mask[i] == 0:
@@ -204,7 +204,7 @@ class MyELECTRA:
                 inp_sentence[masked_indexes[i]] = temp
                 inp_indexes[masked_indexes[i]] = self.get_index_word(temp)
         
-        return ['[CLS]'] + inp_sentence + ['[SEP]'], [1] + inp_indexes + [2], masked_indexes
+        return ['[CLS]'] + inp_sentence + ['[SEP]'], [1] + inp_indexes + [2], masked_indexes + 1
         
     def get_next_batch(self, batch_size, set_index, source_text, indexed_text, masking_rate):
 
