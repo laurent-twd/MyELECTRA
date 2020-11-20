@@ -216,6 +216,7 @@ class MyELECTRA:
         tar_indexes = list(indexed_text[target_indexes])
         temp = list(map(lambda x: self.process_sentence(tar_text[x], tar_indexes[x], masking_rate), range(num_samples)))
         inp_text, inp_indexes, masked_idx = list(zip(*temp))
+        tar_indexes = list(map(lambda x: [1] + x + [2], tar_indexes))
 
         max_len_char = 25 
         max_len = self.pe_input
