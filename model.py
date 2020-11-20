@@ -31,8 +31,8 @@ class MyELECTRA:
         """
         
         self.path_model = path_model
-        self.n_special_tokens = 5 # Padding / [BOS] / [EOS] / [UNKNOWN] / [MASKED]
-        self.n_special_characters = 4 # Padding / < / > / [UNKNOWN]
+        self.n_special_tokens = 5 # Padding / [CLS] / [SEP] / [UNKNOWN] / [MASKED]
+        self.n_special_characters = 7 # Padding /  [BOW] / [EOW] / [CLS] / [SEP] / [MASKED] / [PADDING]
         
         self.d_model = parameters['d_model']
         self.dff = parameters['dff']
@@ -122,9 +122,9 @@ class MyELECTRA:
         if word in self.vocabulary:
             return self.word2idx[word]
         else:
-            if word == '[BOS]':
+            if word == '[CLS]':
                 return 1
-            elif word == '[EOS]':
+            elif word == '[SEP]':
                 return 2
             elif word == '[MASKED]':
                 return 4
@@ -136,9 +136,9 @@ class MyELECTRA:
         if index >= self.n_special_tokens and index <= self.vocab_size - 1 + self.n_special_tokens:
             return self.idx2word[index]
         elif index == 1:
-            return '[BOS]'
+            return '[CLS]'
         elif index == 2:
-            return '[EOS]'
+            return '[SEP]'
         elif index == '[MASKED]':
             return 4
         else:
@@ -173,9 +173,15 @@ class MyELECTRA:
                 try:
                     return self.char2idx[char]
                 except:
-                    return 3
-            return [index2char(c) for c in x]
-        
+                    return 6
+            if x == '[CLS]':
+                return [1, 3, 2]
+            elif x == '[SEP]':
+                return [1, 4, 2]
+            elif x == '[MASKED]':
+                return [1, 5, 2]
+            else:
+                return [1] + [index2char(c) for c in x] + [2]
         indexed_char = list(map(get_index_char, sentence))
         chars = tf.keras.preprocessing.sequence.pad_sequences(indexed_char, maxlen = max_len_char, padding = 'post', truncating = 'post')
         padded_chars = tf.concat([chars, tf.constant(0., shape = (max_len - chars.shape[0], max_len_char))], axis = 0)
@@ -198,7 +204,7 @@ class MyELECTRA:
                 inp_sentence[masked_indexes[i]] = temp
                 inp_indexes[masked_indexes[i]] = self.get_index_word(temp)
         
-        return inp_sentence, inp_indexes, masked_indexes
+        return ['[CLS]'] + inp_sentence + ['[SEP]'], [1] + inp_indexes + [2], masked_indexes
         
     def get_next_batch(self, batch_size, set_index, source_text, indexed_text, masking_rate):
 
@@ -211,7 +217,7 @@ class MyELECTRA:
         temp = list(map(lambda x: self.process_sentence(tar_text[x], tar_indexes[x], masking_rate), range(num_samples)))
         inp_text, inp_indexes, masked_idx = list(zip(*temp))
 
-        max_len_char = 20 
+        max_len_char = 25 
         max_len = self.pe_input
 
         language_mask = tf.concat(list(map(lambda x: tf.reduce_sum(tf.one_hot(x, depth = max_len), axis = 0)[tf.newaxis, :], list(masked_idx))), axis = 0)
@@ -228,7 +234,7 @@ class MyELECTRA:
 
         get_text = np.vectorize(lambda x: self.get_word_index(x))
         gen_text = list(get_text(gen_words))
-        max_len_char = 20 
+        max_len_char = 25 
         max_len = self.pe_input
 
         gen_chars = list(map(lambda x: self.pad_char(x, max_len, max_len_char)[tf.newaxis, :, :], gen_text))
@@ -330,7 +336,7 @@ class MyELECTRA:
             self.list_vocabulary = list(vocabulary)
 
             # Characters
-            characters_corpus = set(Counter(''.join(list(self.vocabulary) + ['[BOS]' , '[EOS]'])).keys())
+            characters_corpus = set(Counter(''.join(list(self.vocabulary))).keys())
             new_characters = characters_corpus - set(self.char2idx.keys())
             n_char = len(self.char2idx)
             add_to_dic_c2i = dict(zip(new_characters, range(n_char + 1, n_char + len(new_characters) + 1)))
@@ -349,12 +355,10 @@ class MyELECTRA:
                 self.idx2word[i + self.n_special_tokens] = word  
             self.list_vocabulary = list(self.vocabulary)
 
-            characters_corpus = set(Counter(''.join(list(self.vocabulary) + ['[BOS]' , '[EOS]', '[MASK]'])).keys())
+            characters_corpus = set(Counter(''.join(list(self.vocabulary))).keys())
             self.char2idx = {}
             for i, char in enumerate(characters_corpus):
                 self.char2idx[char] = i + self.n_special_characters
-            self.char2idx['<'] = 1
-            self.char2idx['>'] = 2
             self.n_char = len(characters_corpus)
 
         ## Dataset
@@ -364,8 +368,8 @@ class MyELECTRA:
         for sentence in corpus:
           indexes = list(map(self.get_index_word, sentence))
           if len(sentence) >= limit:
-            source_text.append(['[BOS]'] + sentence + ['[EOS]'])
-            indexed_text.append([1] + indexes + [2])
+            source_text.append(sentence)
+            indexed_text.append(indexes)
         source_text = np.array(source_text)
         indexed_text = np.array(indexed_text)
 
