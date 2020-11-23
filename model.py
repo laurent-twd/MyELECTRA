@@ -19,7 +19,7 @@ MAX_N_CHARS = 2000
 
 class MyELECTRA:
 
-    def __init__(self, parameters, path_model, training):
+    def __init__(self, parameters, path_model):
         
         """
         Parameters
@@ -43,7 +43,6 @@ class MyELECTRA:
         self.num_highway_layers = parameters['num_highway_layers']
   
         self.fitted = False
-        self.training = training
 
         #try:
          
@@ -56,14 +55,6 @@ class MyELECTRA:
             self.list_vocabulary = parameters['vocabulary']
             self.vocab_size = parameters['vocab_size']
 
-        # Model
-        if self.training:
-            output_dropout = 0.1
-            attention_dropout = 0.1
-            
-        else:
-            output_dropout = 0.
-            attention_dropout = 0.   
 
         self.generator = BertEncoder(vocab_size = MAX_VOCAB_SIZE,
                                     n_chars = MAX_N_CHARS,
@@ -76,8 +67,8 @@ class MyELECTRA:
                                     num_attention_heads = int(4 / 3),
                                     max_sequence_length = self.pe_input,
                                     inner_dim = self.dff,
-                                    output_dropout = output_dropout,
-                                    attention_dropout = attention_dropout)
+                                    output_dropout = 0.1,
+                                    attention_dropout = 0.1)
 
         # Model
         self.discriminator = BertEncoder(vocab_size = MAX_VOCAB_SIZE,
@@ -91,8 +82,8 @@ class MyELECTRA:
                                     num_attention_heads = 4 ,
                                     max_sequence_length = self.pe_input,
                                     inner_dim = self.dff,
-                                    output_dropout = output_dropout,
-                                    attention_dropout = attention_dropout)
+                                    output_dropout = 0.1,
+                                    attention_dropout = 0.1)
 
         # Optimizer
 
@@ -256,7 +247,7 @@ class MyELECTRA:
         enc_padding_mask = create_padding_mask(inp_words)
 
         with tf.GradientTape() as tape:
-            gen_logits = self.generator([inp_chars, enc_padding_mask])['logits']
+            gen_logits = self.generator([inp_chars, enc_padding_mask], training = True)['logits']
 
             mask_logits = tf.concat([tf.zeros(self.n_special_tokens + self.vocab_size), tf.ones(MAX_VOCAB_SIZE  - self.n_special_tokens - self.vocab_size)], 0)
             gen_logits += mask_logits[tf.newaxis, tf.newaxis, :] * (-1e9)
@@ -275,7 +266,7 @@ class MyELECTRA:
     def train_step_discriminator(self, gen_words, gen_chars, enc_padding_mask, adversarial_mask):
 
         with tf.GradientTape() as tape:
-            disc_logits = self.discriminator([gen_chars, enc_padding_mask])['logits']
+            disc_logits = self.discriminator([gen_chars, enc_padding_mask], training = True)['logits']
             probs = tf.squeeze(tf.math.sigmoid(disc_logits + 1e-9), axis = 2)
             loss = adversarial_mask * tf.math.log(probs) + (1 - adversarial_mask) * tf.math.log(1. - probs)
             padding_mask = 1. - enc_padding_mask
