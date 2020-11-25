@@ -10,7 +10,7 @@ from collections import Counter
 import itertools
 
 from encoder import BertEncoder
-from utilities.utils import create_padding_mask, create_oov_mask
+from utilities.utils import create_padding_mask
 from custom_schedule import CustomSchedule
 from copy import deepcopy
 
