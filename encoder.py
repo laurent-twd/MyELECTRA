@@ -103,7 +103,7 @@ class BertEncoder(tf.keras.Model):
     mask = tf.keras.layers.Input(
         shape=(None,), dtype=tf.int32, name='input_mask')
 
-    charCNN = CharCNN(d_embeddings, n_chars, filters)
+    charCNN = CharCNN(d_embeddings, n_chars, filters, lambda x: gelu(x, approximate=True))
     size_output_charCNN = sum([k for k in charCNN.filters.values()])
 
     highway_layers = [HighwayLayer(input_dim=size_output_charCNN, 

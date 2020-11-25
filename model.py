@@ -10,7 +10,7 @@ from collections import Counter
 import itertools
 
 from encoder import BertEncoder
-from utilities.utils import create_padding_mask
+from utilities.utils import create_padding_mask, create_oov_mask
 from custom_schedule import CustomSchedule
 from copy import deepcopy
 
@@ -107,7 +107,6 @@ class MyELECTRA:
         """
         
         Returns the index of a token. Returns 3 (unknown) if it is an out-of-vocabulary token.
-
         """
         
         if word in self.vocabulary:
@@ -141,22 +140,15 @@ class MyELECTRA:
         """
         Parameters
         ----------
-
         sentence: list of int
-
         max_len: int
             Maximum sentence length in a batch.
-
         max_len_char: int
             Maximum word length in a batch
-
         The output has a shape (max_len, max_len_char).
-
         Output
         ------
-
         Returns the padded characters' indexes.
-
         """
 
         def get_index_char(x):
@@ -180,22 +172,39 @@ class MyELECTRA:
 
     def process_sentence(self, tar_sentence, tar_indexes, masking_rate):
         
-        inp_sentence = deepcopy(tar_sentence)
-        inp_indexes = deepcopy(tar_indexes)
+        inp_sentence = ['[CLS]']
+        inp_indexes = [1]
+        new_tar_indexes = [1]
         length = len(tar_sentence)
         number_of_words_masked = int(masking_rate * length)
-        masked_indexes = np.random.choice(range(0, length), number_of_words_masked, replace = False)
+        admissible_indexes = np.where(np.array(tar_indexes) != 3)[0]
+        number_of_words_masked = np.minimum(int(masking_rate * length), len(admissible_indexes))
+        masked_indexes = np.sort(np.random.choice(admissible_indexes, number_of_words_masked, replace = False))
         type_mask = np.random.choice([0, 1, 2], size = number_of_words_masked, replace = True, p = [0.8, 0.1, 0.1])
-        for i in range(number_of_words_masked):
-            if type_mask[i] == 0:
-                inp_sentence[masked_indexes[i]] = '[MASKED]'
-                inp_indexes[masked_indexes[i]] = 4
-            elif type_mask[i] == 1:
-                temp = np.random.choice(self.list_vocabulary)
-                inp_sentence[masked_indexes[i]] = temp
-                inp_indexes[masked_indexes[i]] = self.get_index_word(temp)
-        
-        return ['[CLS]'] + inp_sentence + ['[SEP]'], [1] + inp_indexes + [2], masked_indexes + 1
+        j = 0
+        for i in range(len(tar_sentence)):
+            if j < len(masked_indexes) and i==masked_indexes[j]:
+                if type_mask[j]==0:
+                    inp_sentence.append('[MASKED]')
+                    inp_indexes.append(4)
+                elif type_mask[j]==1:
+                    temp = np.random.choice(self.list_vocabulary)
+                    inp_sentence.append(temp)
+                    inp_indexes.append(self.get_index_word(temp))
+                else:
+                    inp_sentence.append(tar_sentence[i])
+                    inp_indexes.append(tar_indexes[i])     
+                j+=1
+            else:
+                inp_sentence.append(tar_sentence[i])
+                inp_indexes.append(tar_indexes[i])
+            new_tar_indexes.append(tar_indexes[i])
+
+        inp_sentence.append('[SEP]')
+        inp_indexes.append(2)
+        new_tar_indexes.append(2)
+
+        return inp_sentence, inp_indexes, new_tar_indexes, masked_indexes + 1
         
     def get_next_batch(self, batch_size, set_index, source_text, indexed_text, masking_rate):
 
@@ -203,22 +212,20 @@ class MyELECTRA:
         target_indexes = random.sample(set_index, num_samples)
         set_index.difference_update(set(target_indexes))
 
-        tar_text = list(source_text[target_indexes])
-        tar_indexes = list(indexed_text[target_indexes])
+        tar_text = source_text[target_indexes]
+        tar_indexes = indexed_text[target_indexes]
         temp = list(map(lambda x: self.process_sentence(tar_text[x], tar_indexes[x], masking_rate), range(num_samples)))
-        inp_text, inp_indexes, masked_idx = list(zip(*temp))
-        tar_indexes = list(map(lambda x: [1] + x + [2], tar_indexes))
+        inp_text, inp_indexes, new_tar_indexes, masked_idx = list(zip(*temp))
 
         max_len_char = 25 
         max_len = self.pe_input
 
         language_mask = tf.concat(list(map(lambda x: tf.reduce_sum(tf.one_hot(x, depth = max_len), axis = 0)[tf.newaxis, :], list(masked_idx))), axis = 0)
-
         inp_chars = list(map(lambda x: self.pad_char(x, max_len, max_len_char)[tf.newaxis, :, :], inp_text))
         inp_chars = tf.concat(inp_chars, axis = 0)
 
         inp_words = tf.cast(tf.keras.preprocessing.sequence.pad_sequences(inp_indexes, maxlen = max_len, padding = 'post'), tf.int32)
-        tar_words = tf.cast(tf.keras.preprocessing.sequence.pad_sequences(tar_indexes, maxlen = max_len, padding = 'post'), tf.int32)
+        tar_words = tf.cast(tf.keras.preprocessing.sequence.pad_sequences(new_tar_indexes, maxlen = max_len, padding = 'post'), tf.int32)
 
         return inp_words, inp_chars, tar_words, language_mask
 
@@ -253,7 +260,8 @@ class MyELECTRA:
             gen_logits += mask_logits[tf.newaxis, tf.newaxis, :] * (-1e9)
             gen_words = tfp.distributions.Categorical(logits = gen_logits).sample()
             loss = tf.keras.losses.sparse_categorical_crossentropy(tar_words, gen_logits, from_logits = True)
-            loss = tf.reduce_sum(loss * language_mask, axis = 1) / tf.reduce_sum(language_mask, axis = 1)
+            mask = language_mask 
+            loss = tf.reduce_sum(loss * mask, axis = 1) / tf.reduce_sum(mask, axis = 1)
             batch_loss = tf.reduce_mean(loss)
 
             variables = self.generator.trainable_variables[:-2]
@@ -270,7 +278,8 @@ class MyELECTRA:
             probs = tf.squeeze(tf.math.sigmoid(disc_logits + 1e-9), axis = 2)
             loss = adversarial_mask * tf.math.log(probs) + (1 - adversarial_mask) * tf.math.log(1. - probs)
             padding_mask = 1. - enc_padding_mask
-            loss = tf.reduce_sum(loss * padding_mask, axis = 1) / tf.reduce_sum(padding_mask, axis = 1)
+            mask = padding_mask
+            loss = tf.reduce_sum(loss * mask, axis = 1) / tf.reduce_sum(mask, axis = 1)
             batch_loss = - tf.reduce_mean(loss)
 
             variables = self.discriminator.trainable_variables[:-2]
@@ -299,7 +308,6 @@ class MyELECTRA:
         window_size: int
             Window size in the Word2Vec model used to initialize the embedding matrices of the different embedding layers.
             If None, the embedding layers are randomly initialized.
-
         min_count: int
             Threshold under which the words won't be taken into account to update the vocabulary.
             If a word is not in the vocabulary and has a frequency < min_count, the token will be considered as <UNKNOWN> : 3.

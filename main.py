@@ -25,3 +25,6 @@ model.fit(corpus, batch_size = 32, epochs = 1, masking_rate = .15, min_count = 1
 
 
 corpus = corpus[0]
+
+import time
+
