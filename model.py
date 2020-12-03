@@ -218,7 +218,7 @@ class MyELECTRA:
         inp_text, inp_indexes, new_tar_indexes, masked_idx = list(zip(*temp))
 
         max_len_char = 25 
-        max_len = self.pe_input
+        max_len = min(max(list(map(len, inp_text))), self.pe_input)
 
         language_mask = tf.concat(list(map(lambda x: tf.reduce_sum(tf.one_hot(x, depth = max_len), axis = 0)[tf.newaxis, :], list(masked_idx))), axis = 0)
         inp_chars = list(map(lambda x: self.pad_char(x, max_len, max_len_char)[tf.newaxis, :, :], inp_text))
@@ -234,7 +234,7 @@ class MyELECTRA:
         get_text = np.vectorize(lambda x: self.get_word_index(x))
         gen_text = list(get_text(gen_words))
         max_len_char = 25 
-        max_len = self.pe_input
+        max_len = min(max(list(map(len, get_text))), self.pe_input)
 
         gen_chars = list(map(lambda x: self.pad_char(x, max_len, max_len_char)[tf.newaxis, :, :], gen_text))
         gen_chars = tf.concat(gen_chars, axis = 0)
