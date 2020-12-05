@@ -10,9 +10,8 @@ from collections import Counter
 import itertools
 
 from encoder import BertEncoder
+from optimizer.adam_weight_decay_optimizer import AdamWeightDecayOptimizer
 from utilities.utils import create_padding_mask
-from custom_schedule import CustomSchedule
-from copy import deepcopy
 
 MAX_VOCAB_SIZE = 125000
 MAX_N_CHARS = 2000
@@ -87,10 +86,22 @@ class MyELECTRA:
 
         # Optimizer
 
-        learning_rate_gen = CustomSchedule(self.d_model)
-        learning_rate_disc = CustomSchedule(self.d_model)
-        self.generator_optimizer = tf.keras.optimizers.Adam(learning_rate_gen, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
-        self.discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate_disc, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
+        self.generator_optimizer = AdamWeightDecayOptimizer(
+                                    learning_rate=5e-4,
+                                    weight_decay_rate=0.01,
+                                    beta_1=0.9,
+                                    beta_2=0.999,
+                                    epsilon=1e-6,
+                                    exclude_from_weight_decay=["LayerNorm", "layer_norm", "bias"])
+
+        self.discriminator_optimizer = AdamWeightDecayOptimizer(
+                                    learning_rate=5e-4,
+                                    weight_decay_rate=0.01,
+                                    beta_1=0.9,
+                                    beta_2=0.999,
+                                    epsilon=1e-6,
+                                    exclude_from_weight_decay=["LayerNorm", "layer_norm", "bias"])
+
         self.ckpt = tf.train.Checkpoint(generator = self.generator, 
                                         discriminator = self.discriminator,
                                         generator_optimizer = self.generator_optimizer,
