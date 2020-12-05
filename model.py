@@ -10,7 +10,7 @@ from collections import Counter
 import itertools
 
 from encoder import BertEncoder
-from utilities.utils import create_padding_mask, create_oov_mask
+from utilities.utils import create_padding_mask
 from custom_schedule import CustomSchedule
 from copy import deepcopy
 
@@ -218,7 +218,7 @@ class MyELECTRA:
         inp_text, inp_indexes, new_tar_indexes, masked_idx = list(zip(*temp))
 
         max_len_char = 25 
-        max_len = min(max(list(map(len, inp_text))), self.pe_input)
+        max_len = self.pe_input#min(max(list(map(len, inp_text))), self.pe_input)
 
         language_mask = tf.concat(list(map(lambda x: tf.reduce_sum(tf.one_hot(x, depth = max_len), axis = 0)[tf.newaxis, :], list(masked_idx))), axis = 0)
         inp_chars = list(map(lambda x: self.pad_char(x, max_len, max_len_char)[tf.newaxis, :, :], inp_text))
@@ -234,7 +234,7 @@ class MyELECTRA:
         get_text = np.vectorize(lambda x: self.get_word_index(x))
         gen_text = list(get_text(gen_words))
         max_len_char = 25 
-        max_len = min(max(list(map(len, get_text))), self.pe_input)
+        max_len = self.pe_input#min(max(list(map(len, inp_text))), self.pe_input)
 
         gen_chars = list(map(lambda x: self.pad_char(x, max_len, max_len_char)[tf.newaxis, :, :], gen_text))
         gen_chars = tf.concat(gen_chars, axis = 0)
@@ -261,7 +261,7 @@ class MyELECTRA:
             gen_words = tfp.distributions.Categorical(logits = gen_logits).sample()
             loss = tf.keras.losses.sparse_categorical_crossentropy(tar_words, gen_logits, from_logits = True)
             mask = language_mask 
-            loss = tf.reduce_sum(loss * mask, axis = 1) / tf.reduce_sum(mask, axis = 1)
+            loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
             batch_loss = tf.reduce_mean(loss)
 
             variables = self.generator.trainable_variables[:-2]
@@ -279,7 +279,7 @@ class MyELECTRA:
             loss = adversarial_mask * tf.math.log(probs) + (1 - adversarial_mask) * tf.math.log(1. - probs)
             padding_mask = 1. - enc_padding_mask
             mask = padding_mask
-            loss = tf.reduce_sum(loss * mask, axis = 1) / tf.reduce_sum(mask, axis = 1)
+            loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
             batch_loss = - tf.reduce_mean(loss)
 
             variables = self.discriminator.trainable_variables[:-2]
