@@ -3,6 +3,7 @@ import json
 
 import tensorflow as tf
 import tensorflow_probability as tfp
+import tensorflow_addons as tfa
 import numpy as np
 import random
 
@@ -10,7 +11,7 @@ from collections import Counter
 import itertools
 
 from encoder import BertEncoder
-from optimizer.adam_weight_decay_optimizer import AdamWeightDecayOptimizer
+from optimizer.custom_schedule import CustomSchedule
 from utilities.utils import create_padding_mask
 
 MAX_VOCAB_SIZE = 125000
@@ -86,21 +87,21 @@ class MyELECTRA:
 
         # Optimizer
 
-        self.generator_optimizer = AdamWeightDecayOptimizer(
-                                    learning_rate=5e-4,
-                                    weight_decay_rate=0.01,
-                                    beta_1=0.9,
-                                    beta_2=0.999,
-                                    epsilon=1e-6,
-                                    exclude_from_weight_decay=["LayerNorm", "layer_norm", "bias"])
+        gen_learning_rate = CustomSchedule()
+        disc_learning_rate = CustomSchedule()
+        self.generator_optimizer = tfa.optimizers.AdamW(
+                                                weight_decay = 0.01,
+                                                learning_rate = gen_learning_rate,
+                                                beta_1 = 0.9,
+                                                beta_2 = 0.999,
+                                                epsilon = 1e-06)
 
-        self.discriminator_optimizer = AdamWeightDecayOptimizer(
-                                    learning_rate=5e-4,
-                                    weight_decay_rate=0.01,
-                                    beta_1=0.9,
-                                    beta_2=0.999,
-                                    epsilon=1e-6,
-                                    exclude_from_weight_decay=["LayerNorm", "layer_norm", "bias"])
+        self.discriminator_optimizer = tfa.optimizers.AdamW(
+                                                weight_decay = 0.01,
+                                                learning_rate = disc_learning_rate,
+                                                beta_1 = 0.9,
+                                                beta_2 = 0.999,
+                                                epsilon = 1e-06)
 
         self.ckpt = tf.train.Checkpoint(generator = self.generator, 
                                         discriminator = self.discriminator,
