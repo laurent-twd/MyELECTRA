@@ -7,6 +7,7 @@ import os
 path_data = r"/Users/laurentthanwerdas/Documents/Documents/Etudes/NY/Personal/PROJECTS/Deep_Embedded_Clustering/severeinjury.csv"
 data = pd.read_csv(path_data, encoding = 'latin9').head(1000)
 corpus, _ = prepare_text_training(data['text'])
+corpus = [c for c in corpus if len(c) < 126]
 
 parameters = {
     'd_model' : 128,
