@@ -103,8 +103,8 @@ class MyELECTRA:
                                                 beta_2 = 0.999,
                                                 epsilon = 1e-06)
 
-        self.gen_decay_var_list	= [v.name for v in self.generator.trainable_variables[:-2] if 'layer_norm' not in v.name and 'bias' not in v.name]
-        self.disc_decay_var_list = [v.name for v in self.discriminator.trainable_variables[:-2] if 'layer_norm' not in v.name and 'bias' not in v.name]
+        self.gen_decay_var_list	= [v for v in self.generator.variables[:-2] if 'layer_norm' not in v.name and 'bias' not in v.name]
+        self.disc_decay_var_list = [v for v in self.discriminator.variables[:-2] if 'layer_norm' not in v.name and 'bias' not in v.name]
 
         self.ckpt = tf.train.Checkpoint(generator = self.generator, 
                                         discriminator = self.discriminator,
