@@ -12,5 +12,5 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     step = tf.minimum(step, self.num_train_steps)
     learning_rate = ((self.learning_rate - 0.) * (1 - step / self.num_train_steps)) + 0.
     learning_rate *= tf.minimum(1.0, tf.cast(step, tf.float32) / self.warmup_steps)
-    return learning_rate * 0.125
+    return learning_rate * 32. / 128.
 

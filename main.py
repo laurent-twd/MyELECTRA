@@ -10,12 +10,12 @@ corpus, _ = prepare_text_training(data['text'])
 corpus = [c for c in corpus if len(c) < 126]
 
 parameters = {
-    'd_model' : 128,
-    'dff' : 512,
+    'd_model' : 256,
+    'dff' : 1024,
     'pe_input' : 150,
     'num_layers' : 12,
     'd_embeddings' : 64,
-    'filters' : {1: 8, 2 : 8, 3: 16, 4: 32, 5: 64, 6: 128, 7: 256},
+    'filters' : {1: 16, 2 : 16, 3: 32, 4: 64, 5: 128, 6: 256, 7: 512},
     'num_highway_layers' : 2,
     'fitted' : False
 }

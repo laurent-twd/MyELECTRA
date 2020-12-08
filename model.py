@@ -15,7 +15,7 @@ from optimizer.custom_schedule import CustomSchedule
 from utilities.utils import create_padding_mask
 
 MAX_VOCAB_SIZE = 125000
-MAX_N_CHARS = 2000
+MAX_N_CHARS = 500
 
 class MyELECTRA:
 
@@ -90,14 +90,14 @@ class MyELECTRA:
         gen_learning_rate = CustomSchedule()
         disc_learning_rate = CustomSchedule()
         self.generator_optimizer = tfa.optimizers.AdamW(
-                                                weight_decay = 0.01,
+                                                weight_decay = 5e-4,
                                                 learning_rate = gen_learning_rate,
                                                 beta_1 = 0.9,
                                                 beta_2 = 0.999,
                                                 epsilon = 1e-06)
 
         self.discriminator_optimizer = tfa.optimizers.AdamW(
-                                                weight_decay = 0.01,
+                                                weight_decay = 5e-4,
                                                 learning_rate = disc_learning_rate,
                                                 beta_1 = 0.9,
                                                 beta_2 = 0.999,
@@ -273,7 +273,6 @@ class MyELECTRA:
 
             mask_logits = tf.concat([tf.zeros(self.n_special_tokens + self.vocab_size), tf.ones(MAX_VOCAB_SIZE  - self.n_special_tokens - self.vocab_size)], 0)
             gen_logits += mask_logits[tf.newaxis, tf.newaxis, :] * (-1e9)
-            gen_words = tfp.distributions.Categorical(logits = gen_logits).sample()
             loss = tf.keras.losses.sparse_categorical_crossentropy(tar_words, gen_logits, from_logits = True)
             mask = language_mask 
             loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
@@ -283,7 +282,7 @@ class MyELECTRA:
             gradients = tape.gradient(batch_loss, variables)    
             self.generator_optimizer.apply_gradients(zip(gradients, variables), decay_var_list = self.gen_decay_var_list)
         
-        return batch_loss, gen_words, enc_padding_mask
+        return batch_loss, gen_logits, enc_padding_mask
                
     @tf.function
     def train_step_discriminator(self, gen_words, gen_chars, enc_padding_mask, adversarial_mask):
@@ -302,6 +301,18 @@ class MyELECTRA:
             self.discriminator_optimizer.apply_gradients(zip(gradients, variables), decay_var_list = self.disc_decay_var_list)
         
         return batch_loss
+
+    def get_gen_words(self, gen_logits, num_splits = 1):
+        if num_splits > 1:
+            gen_words = []
+            split_gen_logits = tf.split(gen_logits, num_or_size_splits = num_splits, axis = 0)
+            for split in split_gen_logits:
+                gen_words.append(tfp.distributions.Categorical(logits = split).sample())
+            gen_words = tf.concat(gen_words, axis = 0)
+        else:
+            gen_words = tfp.distributions.Categorical(logits = gen_logits).sample()
+            
+        return gen_words
 
     def fit(self, corpus, epochs, batch_size, masking_rate = 0.15, min_count = 1, STORAGE_BUCKET = None):
         
@@ -398,7 +409,8 @@ class MyELECTRA:
             iterations = 0
             while len(set_index) > 0:
                 inp_words, inp_chars, tar_words, language_mask = self.get_next_batch(batch_size, set_index, source_text, indexed_text, masking_rate)
-                generator_loss, gen_words, enc_padding_mask = self.train_step_generator(inp_words, inp_chars, tar_words, language_mask)
+                generator_loss, gen_logits, enc_padding_mask = self.train_step_generator(inp_words, inp_chars, tar_words, language_mask)
+                gen_words = self.get_gen_words(gen_logits, num_splits = 1)
                 gen_words, gen_chars, adversarial_mask = self.get_input_discriminator(inp_chars, tar_words, gen_words, language_mask)
                 discriminator_loss = self.train_step_discriminator(gen_words, gen_chars, enc_padding_mask, adversarial_mask)
                 progbar.add(inp_words.shape[0], values = [('Gen. Loss', generator_loss), ('Disc. Loss', discriminator_loss)])
