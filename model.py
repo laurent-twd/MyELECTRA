@@ -89,19 +89,8 @@ class MyELECTRA:
 
         gen_learning_rate = CustomSchedule()
         disc_learning_rate = CustomSchedule()
-        self.generator_optimizer = tfa.optimizers.AdamW(
-                                                weight_decay = 5e-4,
-                                                learning_rate = gen_learning_rate,
-                                                beta_1 = 0.9,
-                                                beta_2 = 0.999,
-                                                epsilon = 1e-06)
-
-        self.discriminator_optimizer = tfa.optimizers.AdamW(
-                                                weight_decay = 5e-4,
-                                                learning_rate = disc_learning_rate,
-                                                beta_1 = 0.9,
-                                                beta_2 = 0.999,
-                                                epsilon = 1e-06)
+        self.generator_optimizer = tf.keras.optimizers.Adam(gen_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
+        self.discriminator_optimizer = tf.keras.optimizers.Adam(disc_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
 
         self.gen_decay_var_list	= [v for v in self.generator.variables[:-2] if 'layer_norm' not in v.name and 'bias' not in v.name]
         self.disc_decay_var_list = [v for v in self.discriminator.variables[:-2] if 'layer_norm' not in v.name and 'bias' not in v.name]
