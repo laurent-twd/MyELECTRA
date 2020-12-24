@@ -92,9 +92,6 @@ class MyELECTRA:
         self.generator_optimizer = tf.keras.optimizers.Adam(gen_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
         self.discriminator_optimizer = tf.keras.optimizers.Adam(disc_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
 
-        self.gen_decay_var_list	= [v for v in self.generator.variables[:-2] if 'layer_norm' not in v.name and 'bias' not in v.name]
-        self.disc_decay_var_list = [v for v in self.discriminator.variables[:-2] if 'layer_norm' not in v.name and 'bias' not in v.name]
-
         self.ckpt = tf.train.Checkpoint(generator = self.generator, 
                                         discriminator = self.discriminator,
                                         generator_optimizer = self.generator_optimizer,
@@ -269,7 +266,7 @@ class MyELECTRA:
 
             variables = self.generator.trainable_variables[:-2]
             gradients = tape.gradient(batch_loss, variables)    
-            self.generator_optimizer.apply_gradients(zip(gradients, variables), decay_var_list = self.gen_decay_var_list)
+            self.generator_optimizer.apply_gradients(zip(gradients, variables))
         
         return batch_loss, gen_logits, enc_padding_mask
                
@@ -287,7 +284,7 @@ class MyELECTRA:
 
             variables = self.discriminator.trainable_variables[:-2]
             gradients = tape.gradient(batch_loss, variables)    
-            self.discriminator_optimizer.apply_gradients(zip(gradients, variables), decay_var_list = self.disc_decay_var_list)
+            self.discriminator_optimizer.apply_gradients(zip(gradients, variables))
         
         return batch_loss
 
