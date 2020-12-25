@@ -280,8 +280,7 @@ class MyELECTRA:
             #probs = tf.squeeze(tf.math.sigmoid(disc_logits + 1e-9), axis = 2)
             #loss = adversarial_mask * tf.math.log(probs) + (1 - adversarial_mask) * tf.math.log(1. - probs)
             loss = nn.sigmoid_cross_entropy_with_logits(labels = adversarial_mask, logits = disc_logits)
-            padding_mask = 1. - enc_padding_mask
-            mask = padding_mask
+            mask = 1. - enc_padding_mask
             loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
             batch_loss = tf.reduce_mean(loss)
 
