@@ -52,7 +52,7 @@ class MyELECTRA:
             self.char2idx = parameters['char2idx']
             self.idx2word = {v: k for k, v in self.word2idx.items()}
             self.vocabulary = set(parameters['vocabulary'])
-            self.list_vocabulary = parameters['vocabulary']
+            self.list_vocabulary = np.array(parameters['vocabulary'])
             self.vocab_size = parameters['vocab_size']
 
 
@@ -345,7 +345,7 @@ class MyELECTRA:
             assert len(vocabulary) == (self.vocab_size + len(new_vocabulary))
             self.vocabulary = vocabulary
             self.vocab_size = len(self.vocabulary)
-            self.list_vocabulary = list(vocabulary)
+            self.list_vocabulary = np.array(list(vocabulary))
 
             # Characters
             characters_corpus = set(Counter(''.join(list(self.vocabulary))).keys())
@@ -365,7 +365,7 @@ class MyELECTRA:
             for i, word in enumerate(self.vocabulary):
                 self.word2idx[word] = i + self.n_special_tokens
                 self.idx2word[i + self.n_special_tokens] = word  
-            self.list_vocabulary = list(self.vocabulary)
+            self.list_vocabulary = np.array(list(self.vocabulary))
 
             characters_corpus = set(Counter(''.join(list(self.vocabulary))).keys())
             self.char2idx = {}
