@@ -2,6 +2,7 @@ import os
 import json
 
 import tensorflow as tf
+from tensorflow.python.ops import nn
 import tensorflow_probability as tfp
 import tensorflow_addons as tfa
 import numpy as np
