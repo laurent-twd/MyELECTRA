@@ -283,7 +283,7 @@ class MyELECTRA:
             padding_mask = 1. - enc_padding_mask
             mask = padding_mask
             loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
-            batch_loss = - tf.reduce_mean(loss)
+            batch_loss = tf.reduce_mean(loss)
 
             variables = self.discriminator.trainable_variables[:-2]
             gradients = tape.gradient(batch_loss, variables)    
