@@ -90,14 +90,14 @@ class MyELECTRA:
         gen_learning_rate = CustomSchedule()
         disc_learning_rate = CustomSchedule()
         self.generator_optimizer = tfa.optimizers.AdamW(
-                                                weight_decay = 5e-4,
+                                                weight_decay = 0.01,
                                                 learning_rate = gen_learning_rate,
                                                 beta_1 = 0.9,
                                                 beta_2 = 0.999,
                                                 epsilon = 1e-06)
 
         self.discriminator_optimizer = tfa.optimizers.AdamW(
-                                                weight_decay = 5e-4,
+                                                weight_decay = 0.01,
                                                 learning_rate = disc_learning_rate,
                                                 beta_1 = 0.9,
                                                 beta_2 = 0.999,
@@ -144,8 +144,8 @@ class MyELECTRA:
             return '[CLS]'
         elif index == 2:
             return '[SEP]'
-        elif index == '[MASKED]':
-            return 4
+        elif index == 4:
+            return '[MASKED]'
         else:
             return '[UNKNOWN]'
 
@@ -289,12 +289,11 @@ class MyELECTRA:
 
         with tf.GradientTape() as tape:
             disc_logits = self.discriminator([gen_chars, enc_padding_mask], training = True)['logits']
-            probs = tf.squeeze(tf.math.sigmoid(disc_logits + 1e-9), axis = 2)
-            loss = adversarial_mask * tf.math.log(probs) + (1 - adversarial_mask) * tf.math.log(1. - probs)
-            padding_mask = 1. - enc_padding_mask
-            mask = padding_mask
+            disc_logits = tf.squeeze(disc_logits, axis = 2)
+            loss = nn.sigmoid_cross_entropy_with_logits(labels = adversarial_mask, logits = disc_logits)
+            mask = 1. - enc_padding_mask
             loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
-            batch_loss = - tf.reduce_mean(loss)
+            batch_loss = tf.reduce_mean(loss)
 
             variables = self.discriminator.trainable_variables[:-2]
             gradients = tape.gradient(batch_loss, variables)    
