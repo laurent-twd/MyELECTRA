@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
-  def __init__(self, learning_rate = 5e-4, num_train_steps = 500000, warmup_steps = 10000):
+  def __init__(self, learning_rate = 2e-4, num_train_steps = 500000, warmup_steps = 10000):
     super(CustomSchedule, self).__init__()
     
     self.warmup_steps = tf.cast(warmup_steps, dtype = tf.float32)
