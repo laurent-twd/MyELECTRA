@@ -2,6 +2,7 @@ import os
 import json
 
 import tensorflow as tf
+from tensorflow.python.ops import nn
 import tensorflow_probability as tfp
 import tensorflow_addons as tfa
 import numpy as np
@@ -275,8 +276,10 @@ class MyELECTRA:
 
         with tf.GradientTape() as tape:
             disc_logits = self.discriminator([gen_chars, enc_padding_mask], training = True)['logits']
-            probs = tf.squeeze(tf.math.sigmoid(disc_logits + 1e-9), axis = 2)
-            loss = adversarial_mask * tf.math.log(probs) + (1 - adversarial_mask) * tf.math.log(1. - probs)
+            disc_logits = tf.squeeze(disc_logits, axis = 2)
+            #probs = tf.squeeze(tf.math.sigmoid(disc_logits + 1e-9), axis = 2)
+            #loss = adversarial_mask * tf.math.log(probs) + (1 - adversarial_mask) * tf.math.log(1. - probs)
+            loss = nn.sigmoid_cross_entropy_with_logits(labels = adversarial_mask, logits = disc_logits)
             padding_mask = 1. - enc_padding_mask
             mask = padding_mask
             loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
