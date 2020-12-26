@@ -14,8 +14,9 @@ import itertools
 from encoder import BertEncoder
 from optimizer.custom_schedule import CustomSchedule
 from utilities.utils import create_padding_mask
+from utilities.binary_tree import build_tree
 
-MAX_VOCAB_SIZE = 125000
+MAX_VOCAB_SIZE = 2**17
 MAX_N_CHARS = 500
 
 class MyELECTRA:
@@ -42,8 +43,11 @@ class MyELECTRA:
         self.filters = parameters['filters']
         self.d_embeddings = parameters['d_embeddings']
         self.num_highway_layers = parameters['num_highway_layers']
+        self.hs = parameters['hs']
   
         self.fitted = False
+        self.index_nodes = None
+        self.binary_codes = None
 
         #try:
          
@@ -55,12 +59,20 @@ class MyELECTRA:
             self.vocabulary = set(parameters['vocabulary'])
             self.list_vocabulary = np.array(parameters['vocabulary'])
             self.vocab_size = parameters['vocab_size']
+            self.index_nodes = parameters['index_nodes']
+            self.binary_codes = parameters['binary_codes']
+
+            if self.hs:
+                max_depth = np.max(list(map(len, self.index_nodes)))
+                self.__padded_index_nodes =  tf.keras.preprocessing.sequence.pad_sequences(self.index_nodes, maxlen = max_depth, value = 0, padding = 'post')
+                self.__padded_binary_codes = tf.keras.preprocessing.sequence.pad_sequences(self.binary_codes, maxlen = max_depth, value = 0, padding = 'post')
 
 
         self.generator = BertEncoder(vocab_size = MAX_VOCAB_SIZE,
                                     n_chars = MAX_N_CHARS,
                                     filters = self.filters,
                                     output_dim = MAX_VOCAB_SIZE,
+                                    hierarchical_softmax = self.hs,
                                     d_embeddings = self.d_embeddings,
                                     hidden_size = int(self.d_model / 3),
                                     num_layers = int(self.num_layers / 3),
@@ -76,6 +88,7 @@ class MyELECTRA:
                                     n_chars = MAX_N_CHARS,
                                     filters = self.filters,
                                     output_dim = 1,
+                                    hierarchical_softmax = False,
                                     d_embeddings = self.d_embeddings,
                                     hidden_size = self.d_model,
                                     num_layers = self.num_layers,
@@ -220,7 +233,7 @@ class MyELECTRA:
         inp_text, inp_indexes, new_tar_indexes, masked_idx = list(zip(*temp))
 
         max_len_char = 25 
-        max_len = self.pe_input#min(max(list(map(len, inp_text))), self.pe_input)
+        max_len = self.pe_input
 
         language_mask = tf.concat(list(map(lambda x: tf.reduce_sum(tf.one_hot(x, depth = max_len), axis = 0)[tf.newaxis, :], list(masked_idx))), axis = 0)
         inp_chars = list(map(lambda x: self.pad_char(x, max_len, max_len_char)[tf.newaxis, :, :], inp_text))
@@ -236,7 +249,7 @@ class MyELECTRA:
         get_text = np.vectorize(lambda x: self.get_word_index(x))
         gen_text = list(get_text(gen_words))
         max_len_char = 25 
-        max_len = self.pe_input#min(max(list(map(len, inp_text))), self.pe_input)
+        max_len = self.pe_input
 
         gen_chars = list(map(lambda x: self.pad_char(x, max_len, max_len_char)[tf.newaxis, :, :], gen_text))
         gen_chars = tf.concat(gen_chars, axis = 0)
@@ -256,29 +269,39 @@ class MyELECTRA:
         enc_padding_mask = create_padding_mask(inp_words)
 
         with tf.GradientTape() as tape:
-            gen_logits = self.generator([inp_chars, enc_padding_mask], training = True)['logits']
 
-            mask_logits = tf.concat([tf.zeros(self.n_special_tokens + self.vocab_size), tf.ones(MAX_VOCAB_SIZE  - self.n_special_tokens - self.vocab_size)], 0)
-            gen_logits += mask_logits[tf.newaxis, tf.newaxis, :] * (-1e9)
-            loss = tf.keras.losses.sparse_categorical_crossentropy(tar_words, gen_logits, from_logits = True)
-            mask = language_mask 
-            loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
+            if self.hs:
+                nodes = tf.gather(self.__padded_index_nodes, tar_words)
+                codes = tf.gather(self.__padded_binary_codes, tar_words)
+                encoder_output = self.generator([inp_chars, enc_padding_mask, nodes, codes], training = True)
+                probs = encoder_output['logits_or_probs']
+                logits_or_sequence_output = encoder_output['sequence_output']
+
+                loss = tf.math.log(probs + 1e-9)
+                mask = language_mask 
+                loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
+
+            else:
+                logits_or_sequence_output = self.generator([inp_chars, enc_padding_mask], training = True)['logits_or_probs']
+                mask_logits = tf.concat([tf.zeros(self.n_special_tokens + self.vocab_size), tf.ones(MAX_VOCAB_SIZE  - self.n_special_tokens - self.vocab_size)], 0)
+                logits_or_sequence_output += mask_logits[tf.newaxis, tf.newaxis, :] * (-1e9)
+                loss = tf.keras.losses.sparse_categorical_crossentropy(tar_words, logits_or_sequence_output, from_logits = True)
+                mask = language_mask 
+                loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
+            
             batch_loss = tf.reduce_mean(loss)
-
             variables = self.generator.trainable_variables[:-2]
             gradients = tape.gradient(batch_loss, variables)    
             self.generator_optimizer.apply_gradients(zip(gradients, variables))
         
-        return batch_loss, gen_logits, enc_padding_mask
+        return batch_loss, logits_or_sequence_output, enc_padding_mask
                
     @tf.function
     def train_step_discriminator(self, gen_words, gen_chars, enc_padding_mask, adversarial_mask):
 
         with tf.GradientTape() as tape:
-            disc_logits = self.discriminator([gen_chars, enc_padding_mask], training = True)['logits']
+            disc_logits = self.discriminator([gen_chars, enc_padding_mask], training = True)['logits_or_probs']
             disc_logits = tf.squeeze(disc_logits, axis = 2)
-            #probs = tf.squeeze(tf.math.sigmoid(disc_logits + 1e-9), axis = 2)
-            #loss = adversarial_mask * tf.math.log(probs) + (1 - adversarial_mask) * tf.math.log(1. - probs)
             loss = nn.sigmoid_cross_entropy_with_logits(labels = adversarial_mask, logits = disc_logits)
             mask = 1. - enc_padding_mask
             loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
@@ -290,16 +313,32 @@ class MyELECTRA:
         
         return batch_loss
 
-    def get_gen_words(self, gen_logits, num_splits = 1):
-        if num_splits > 1:
-            gen_words = []
-            split_gen_logits = tf.split(gen_logits, num_or_size_splits = num_splits, axis = 0)
-            for split in split_gen_logits:
-                gen_words.append(tfp.distributions.Categorical(logits = split).sample())
-            gen_words = tf.concat(gen_words, axis = 0)
-        else:
-            gen_words = tfp.distributions.Categorical(logits = gen_logits).sample()
+    @tf.function
+    def get_gen_words(self, logits_or_sequence_output, num_splits = 1):
+
+        if self.hs:
+            weights = self.generator.layers[-2].w
+            max_depth = tf.cast(tf.math.ceil(tf.math.log(tf.cast(MAX_VOCAB_SIZE, dtype = tf.float32)) / tf.math.log(2.)), dtype = tf.int32)
+            values = tf.constant(1, shape = logits_or_sequence_output.shape[:-1])
+            for i in range(max_depth):
+                probs = tf.sigmoid(tf.reduce_sum(tf.gather(weights, values) * logits_or_sequence_output, axis = 2))
+                samples = tfp.distributions.Bernoulli(probs = probs).sample()
+                values = 2 * values + samples
+            values = values - (MAX_VOCAB_SIZE + 1)
+            gen_words = np.random.randint(low = 0, high = self.vocab_size + self.n_special_tokens - 1, size = values.shape)
+            gen_words = tf.where(values >= self.vocab_size + self.n_special_tokens, gen_words, values)
             
+            ## NEED TO ADD TREE DESCENT TO SAMPLE 
+        else:
+            if num_splits > 1:
+                gen_words = []
+                split_gen_logits = tf.split(logits_or_sequence_output, num_or_size_splits = num_splits, axis = 0)
+                for split in split_gen_logits:
+                    gen_words.append(tfp.distributions.Categorical(logits = split).sample())
+                gen_words = tf.concat(gen_words, axis = 0)
+            else:
+                gen_words = tfp.distributions.Categorical(logits = logits_or_sequence_output).sample()
+                
         return gen_words
 
     def fit(self, corpus, epochs, batch_size, masking_rate = 0.15, min_count = 1, STORAGE_BUCKET = None):
@@ -387,6 +426,20 @@ class MyELECTRA:
         source_text = np.array(source_text)
         indexed_text = np.array(indexed_text)
 
+        ## Hierarchical Softmax
+
+        if not self.fitted and self.hs:
+            freq_corpus = dict(Counter(flatten(list(indexed_text))))
+            tree_freq = dict(zip(range(MAX_VOCAB_SIZE), [0 for i in range(MAX_VOCAB_SIZE)]))
+            tree_freq.update(freq_corpus)
+
+            index_nodes, binary_codes = build_tree(tree_freq)
+            self.index_nodes = index_nodes
+            self.binary_codes = binary_codes
+            max_depth = np.max(list(map(len, self.index_nodes)))
+            self.__padded_index_nodes =  tf.keras.preprocessing.sequence.pad_sequences(self.index_nodes, maxlen = max_depth, value = 0, padding = 'post')
+            self.__padded_binary_codes = tf.keras.preprocessing.sequence.pad_sequences(self.binary_codes, maxlen = max_depth, value = 0, padding = 'post')
+
         ## Training
         print("Training...")
         self.fitted = True
@@ -397,8 +450,8 @@ class MyELECTRA:
             iterations = 0
             while len(set_index) > 0:
                 inp_words, inp_chars, tar_words, language_mask = self.get_next_batch(batch_size, set_index, source_text, indexed_text, masking_rate)
-                generator_loss, gen_logits, enc_padding_mask = self.train_step_generator(inp_words, inp_chars, tar_words, language_mask)
-                gen_words = self.get_gen_words(gen_logits, num_splits = 1)
+                generator_loss, logits_or_sequence_output, enc_padding_mask = self.train_step_generator(inp_words, inp_chars, tar_words, language_mask)
+                gen_words = self.get_gen_words(logits_or_sequence_output, num_splits = 1)
                 gen_words, gen_chars, adversarial_mask = self.get_input_discriminator(inp_chars, tar_words, gen_words, language_mask)
                 discriminator_loss = self.train_step_discriminator(gen_words, gen_chars, enc_padding_mask, adversarial_mask)
                 progbar.add(inp_words.shape[0], values = [('Gen. Loss', generator_loss), ('Disc. Loss', discriminator_loss)])
@@ -428,7 +481,9 @@ class MyELECTRA:
             'pe_input' : self.pe_input,
             'filters' : self.filters,
             'd_embeddings' : self.d_embeddings,
-            'num_highway_layers' : self.num_highway_layers
+            'num_highway_layers' : self.num_highway_layers,
+            'index_nodes' : self.index_nodes,
+            'binary_codes' : self.binary_codes,
         }
         
         with open(os.path.join(self.path_model, 'parameters.json'), 'w') as params:

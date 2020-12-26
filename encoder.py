@@ -8,6 +8,7 @@ from layers.self_attention_mask import SelfAttentionMask
 from layers.transformer_encoder_block import TransformerEncoderBlock
 from layers.highway_layer import HighwayLayer
 from layers.char_cnn import CharCNN
+from layers.hierarchical_layer import HierarchicalLayer
 
 from tensorflow.python.framework import ops
 from tensorflow.python.ops import math_ops
@@ -80,6 +81,7 @@ class BertEncoder(tf.keras.Model):
       n_chars,
       filters,
       output_dim,
+      hierarchical_softmax = False,
       d_embeddings = 64,
       hidden_size=128,
       num_layers=12,
@@ -98,10 +100,11 @@ class BertEncoder(tf.keras.Model):
     activation = tf.keras.activations.get(inner_activation)
     initializer = tf.keras.initializers.get(initializer)
 
-    char_ids = tf.keras.layers.Input(
-        shape=(None, None), dtype=tf.int32, name='input_char_ids')
-    mask = tf.keras.layers.Input(
-        shape=(None,), dtype=tf.int32, name='input_mask')
+    char_ids = tf.keras.layers.Input(shape=(None, None), dtype=tf.int32, name='input_char_ids')
+    mask = tf.keras.layers.Input(shape=(None,), dtype=tf.int32, name='input_mask')
+    if hierarchical_softmax:
+      nodes = tf.keras.layers.Input(shape = (None, ), dtype = tf.int32, name = 'nodes')
+      codes = tf.keras.layers.Input(shape = (None, ), dtype = tf.int32, name = 'codes')
 
     charCNN = CharCNN(d_embeddings, n_chars, filters, lambda x: gelu(x, approximate=True))
     size_output_charCNN = sum([k for k in charCNN.filters.values()])
@@ -115,7 +118,6 @@ class BertEncoder(tf.keras.Model):
 
     word_embeddings = tf.keras.layers.Dense(hidden_size)(word_embeddings)
 
-    # Always uses dynamic slicing for simplicity.
     position_embedding_layer = PositionEmbedding(
         initializer=initializer,
         max_length=max_sequence_length,
@@ -167,9 +169,6 @@ class BertEncoder(tf.keras.Model):
       encoder_outputs.append(data)
 
     last_encoder_output = encoder_outputs[-1]
-    # Applying a tf.slice op (through subscript notation) to a Keras tensor
-    # like this will create a SliceOpLambda layer. This is better than a Lambda
-    # layer with Python code, because that is fundamentally less portable.
     first_token_tensor = last_encoder_output[:, 0, :]
     pooler_layer = tf.keras.layers.Dense(
         units=hidden_size,
@@ -178,24 +177,28 @@ class BertEncoder(tf.keras.Model):
         name='pooler_transform')
     cls_output = pooler_layer(first_token_tensor)
 
-    dense_logits = tf.keras.layers.Dense(output_dim, activation = 'linear')
-    logits = dense_logits(last_encoder_output)
+    if hierarchical_softmax:
+      logits = None
+      hierarchical_layer = HierarchicalLayer(vocab_size = vocab_size, enc_units = hidden_size)
+      logits_or_probs = hierarchical_layer(nodes, codes, last_encoder_output)
+    
+    else:
+      dense_logits = tf.keras.layers.Dense(output_dim, activation = 'linear')
+      logits_or_probs = dense_logits(last_encoder_output)
 
     outputs = dict(
         sequence_output=encoder_outputs[-1],
         pooled_output=cls_output,
         encoder_outputs=encoder_outputs,
-        logits=logits
+        logits_or_probs=logits_or_probs
     )
 
-    # Once we've created the network using the Functional API, we call
-    # super().__init__ as though we were invoking the Functional API Model
-    # constructor, resulting in this object having all the properties of a model
-    # created using the Functional API. Once super().__init__ is called, we
-    # can assign attributes to `self` - note that all `self` assignments are
-    # below this line.
-    super(BertEncoder, self).__init__(
-        inputs=[char_ids, mask], outputs=outputs, **kwargs)
+    if hierarchical_softmax:
+      super(BertEncoder, self).__init__(
+          inputs=[char_ids, mask, nodes, codes], outputs=outputs, **kwargs)
+    else:
+      super(BertEncoder, self).__init__(
+          inputs=[char_ids, mask], outputs=outputs, **kwargs)     
 
     config_dict = {
         'vocab_size': vocab_size,
