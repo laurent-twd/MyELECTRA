@@ -277,7 +277,7 @@ class MyELECTRA:
                 probs = encoder_output['logits_or_probs']
                 logits_or_sequence_output = encoder_output['sequence_output']
 
-                loss = tf.math.log(probs + 1e-9)
+                loss =  - tf.math.log(probs + 1e-9)
                 mask = language_mask 
                 loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
 

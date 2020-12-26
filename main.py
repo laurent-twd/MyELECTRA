@@ -11,12 +11,12 @@ corpus = ['hello my name is laurent and i am a data scientist trying to understa
         'i am a data scientist on the weekdays'.split()]
 
 parameters = {
-    'd_model' : 256,
-    'dff' : 1024,
-    'pe_input' : 150,
-    'num_layers' : 12,
-    'd_embeddings' : 64,
-    'filters' : {1: 16, 2 : 16, 3: 32, 4: 64, 5: 128, 6: 256, 7: 512},
+    'd_model' : 32,
+    'dff' : 64,
+    'pe_input' : 50,
+    'num_layers' : 2,
+    'd_embeddings' : 16,
+    'filters' : {1: 16, 2 : 16},
     'num_highway_layers' : 2,
     'fitted' : False,
     'hs' : True
