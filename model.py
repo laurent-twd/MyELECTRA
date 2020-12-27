@@ -103,8 +103,8 @@ class MyELECTRA:
 
         gen_learning_rate = CustomSchedule(self.d_model)
         disc_learning_rate = CustomSchedule(self.d_model)
-        self.generator_optimizer = tf.keras.optimizers.Adam(gen_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
-        self.discriminator_optimizer = tf.keras.optimizers.Adam(disc_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
+        self.generator_optimizer = tf.keras.optimizers.Adam(gen_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-6)
+        self.discriminator_optimizer = tf.keras.optimizers.Adam(disc_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-6)
 
         self.ckpt = tf.train.Checkpoint(generator = self.generator, 
                                         discriminator = self.discriminator,
