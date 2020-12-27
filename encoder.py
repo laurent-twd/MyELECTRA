@@ -103,8 +103,8 @@ class BertEncoder(tf.keras.Model):
     char_ids = tf.keras.layers.Input(shape=(None, None), dtype=tf.int32, name='input_char_ids')
     mask = tf.keras.layers.Input(shape=(None,), dtype=tf.int32, name='input_mask')
     if hierarchical_softmax:
-      nodes = tf.keras.layers.Input(shape = (None, ), dtype = tf.int32, name = 'nodes')
-      codes = tf.keras.layers.Input(shape = (None, ), dtype = tf.int32, name = 'codes')
+      nodes = tf.keras.layers.Input(shape = (None, None), dtype = tf.int32, name = 'nodes')
+      codes = tf.keras.layers.Input(shape = (None, None), dtype = tf.int32, name = 'codes')
 
     charCNN = CharCNN(d_embeddings, n_chars, filters, lambda x: gelu(x, approximate=True))
     size_output_charCNN = sum([k for k in charCNN.filters.values()])
