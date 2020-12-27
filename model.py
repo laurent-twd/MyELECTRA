@@ -277,7 +277,7 @@ class MyELECTRA:
                 probs = encoder_output['logits_or_probs']
                 logits_or_sequence_output = encoder_output['sequence_output']
 
-                loss =  - tf.math.log(probs + 1e-9)
+                loss =  - tf.math.log(probs + 1e-12)
                 mask = language_mask 
                 loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
 
@@ -326,6 +326,7 @@ class MyELECTRA:
                 values = 2 * values + samples
             values = values - (MAX_VOCAB_SIZE + 1)
             gen_words = np.random.randint(low = 0, high = self.vocab_size + self.n_special_tokens - 1, size = values.shape)
+            gen_words = tf.cast(gen_words, dtype = tf.int32)
             gen_words = tf.where(values >= self.vocab_size + self.n_special_tokens, gen_words, values)
             
             ## NEED TO ADD TREE DESCENT TO SAMPLE 
