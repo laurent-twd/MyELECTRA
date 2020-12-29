@@ -248,7 +248,9 @@ class MyELECTRA:
         gen_is_true = tf.cast(tar_words == gen_words, dtype = tf.float32)
         adversarial_mask = tf.maximum(0., language_mask - gen_is_true)
 
-        return gen_words, gen_chars, adversarial_mask
+        unkown_tokens_mask = tf.cast(tf.not_equal(tar_words, 3), dtype = tf.float32)
+
+        return gen_words, gen_chars, adversarial_mask, unkown_tokens_mask
 
     @tf.function
     def train_step_generator(self, inp_words, inp_chars, tar_words, language_mask):
@@ -272,15 +274,13 @@ class MyELECTRA:
         return batch_loss, gen_logits, enc_padding_mask
                
     @tf.function
-    def train_step_discriminator(self, gen_words, gen_chars, enc_padding_mask, adversarial_mask):
+    def train_step_discriminator(self, gen_words, gen_chars, enc_padding_mask, adversarial_mask, unkown_tokens_mask):
 
         with tf.GradientTape() as tape:
             disc_logits = self.discriminator([gen_chars, enc_padding_mask], training = True)['logits']
             disc_logits = tf.squeeze(disc_logits, axis = 2)
-            #probs = tf.squeeze(tf.math.sigmoid(disc_logits + 1e-9), axis = 2)
-            #loss = adversarial_mask * tf.math.log(probs) + (1 - adversarial_mask) * tf.math.log(1. - probs)
             loss = nn.sigmoid_cross_entropy_with_logits(labels = adversarial_mask, logits = disc_logits)
-            mask = 1. - enc_padding_mask
+            mask = (1. - enc_padding_mask) * unkown_tokens_mask
             loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
             batch_loss = tf.reduce_mean(loss)
 
@@ -399,8 +399,8 @@ class MyELECTRA:
                 inp_words, inp_chars, tar_words, language_mask = self.get_next_batch(batch_size, set_index, source_text, indexed_text, masking_rate)
                 generator_loss, gen_logits, enc_padding_mask = self.train_step_generator(inp_words, inp_chars, tar_words, language_mask)
                 gen_words = self.get_gen_words(gen_logits, num_splits = 1)
-                gen_words, gen_chars, adversarial_mask = self.get_input_discriminator(inp_chars, tar_words, gen_words, language_mask)
-                discriminator_loss = self.train_step_discriminator(gen_words, gen_chars, enc_padding_mask, adversarial_mask)
+                gen_words, gen_chars, adversarial_mask, unkown_tokens_mask = self.get_input_discriminator(inp_chars, tar_words, gen_words, language_mask)
+                discriminator_loss = self.train_step_discriminator(gen_words, gen_chars, enc_padding_mask, adversarial_mask, unkown_tokens_mask)
                 progbar.add(inp_words.shape[0], values = [('Gen. Loss', generator_loss), ('Disc. Loss', discriminator_loss)])
                 iterations += 1
                 if (iterations % 5000) == 0 and STORAGE_BUCKET != None:

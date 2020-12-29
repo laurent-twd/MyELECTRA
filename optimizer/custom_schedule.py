@@ -13,4 +13,4 @@ class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
     arg1 = tf.math.rsqrt(step)
     arg2 = step * (self.warmup_steps ** -1.5)
     
-    return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2) * 0.125
+    return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2) * 32. / 128.
