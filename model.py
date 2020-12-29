@@ -17,7 +17,7 @@ from utilities.utils import create_padding_mask
 from utilities.binary_tree import build_tree
 
 MAX_VOCAB_SIZE = 2**17
-MAX_N_CHARS = 500
+MAX_N_CHARS = 1000
 
 class MyELECTRA:
 
@@ -133,6 +133,8 @@ class MyELECTRA:
                 return 2
             elif word == '[MASKED]':
                 return 4
+            elif word == '[UNKNOWN]':
+                return 3
             else:
                 return 3 # index for UNKNOWN
     
@@ -144,8 +146,8 @@ class MyELECTRA:
             return '[CLS]'
         elif index == 2:
             return '[SEP]'
-        elif index == '[MASKED]':
-            return 4
+        elif index == 4:
+            return '[MASKED]'
         else:
             return '[UNKNOWN]'
 
@@ -261,7 +263,9 @@ class MyELECTRA:
         gen_is_true = tf.cast(tar_words == gen_words, dtype = tf.float32)
         adversarial_mask = tf.maximum(0., language_mask - gen_is_true)
 
-        return gen_words, gen_chars, adversarial_mask
+        unkown_tokens_mask = tf.cast(tf.not_equal(tar_words, 3), dtype = tf.float32)
+
+        return gen_chars, adversarial_mask, unkown_tokens_mask
 
     @tf.function
     def train_step_generator(self, inp_words, inp_chars, tar_words, language_mask):
@@ -297,13 +301,13 @@ class MyELECTRA:
         return batch_loss, logits_or_sequence_output, enc_padding_mask
                
     @tf.function
-    def train_step_discriminator(self, gen_words, gen_chars, enc_padding_mask, adversarial_mask):
+    def train_step_discriminator(self, gen_chars, enc_padding_mask, adversarial_mask, unkown_tokens_mask):
 
         with tf.GradientTape() as tape:
             disc_logits = self.discriminator([gen_chars, enc_padding_mask], training = True)['logits_or_probs']
             disc_logits = tf.squeeze(disc_logits, axis = 2)
             loss = nn.sigmoid_cross_entropy_with_logits(labels = adversarial_mask, logits = disc_logits)
-            mask = 1. - enc_padding_mask
+            mask = (1. - enc_padding_mask) * unkown_tokens_mask
             loss = tf.math.divide_no_nan(tf.reduce_sum(loss * mask, axis = 1), tf.reduce_sum(mask, axis = 1))
             batch_loss = tf.reduce_mean(loss)
 
@@ -320,7 +324,7 @@ class MyELECTRA:
             weights = self.generator.layers[-2].w
             max_depth = tf.cast(tf.math.ceil(tf.math.log(tf.cast(MAX_VOCAB_SIZE, dtype = tf.float32)) / tf.math.log(2.)), dtype = tf.int32)
             values = tf.constant(1, shape = logits_or_sequence_output.shape[:-1])
-            for i in range(max_depth):
+            for _ in range(max_depth):
                 probs = tf.sigmoid(tf.reduce_sum(tf.gather(weights, values) * logits_or_sequence_output, axis = 2))
                 samples = tfp.distributions.Bernoulli(probs = probs).sample()
                 values = 2 * values + samples
@@ -453,8 +457,8 @@ class MyELECTRA:
                 inp_words, inp_chars, tar_words, language_mask = self.get_next_batch(batch_size, set_index, source_text, indexed_text, masking_rate)
                 generator_loss, logits_or_sequence_output, enc_padding_mask = self.train_step_generator(inp_words, inp_chars, tar_words, language_mask)
                 gen_words = self.get_gen_words(logits_or_sequence_output, num_splits = 1)
-                gen_words, gen_chars, adversarial_mask = self.get_input_discriminator(inp_chars, tar_words, gen_words, language_mask)
-                discriminator_loss = self.train_step_discriminator(gen_words, gen_chars, enc_padding_mask, adversarial_mask)
+                gen_chars, adversarial_mask, unkown_tokens_mask = self.get_input_discriminator(inp_chars, tar_words, gen_words, language_mask)
+                discriminator_loss = self.train_step_discriminator(gen_chars, enc_padding_mask, adversarial_mask, unkown_tokens_mask)
                 progbar.add(inp_words.shape[0], values = [('Gen. Loss', generator_loss), ('Disc. Loss', discriminator_loss)])
                 iterations += 1
                 if (iterations % 5000) == 0 and STORAGE_BUCKET != None:
