@@ -16,7 +16,7 @@ from optimizer.custom_schedule import CustomSchedule
 from utilities.utils import create_padding_mask
 
 MAX_VOCAB_SIZE = 125000
-MAX_N_CHARS = 500
+MAX_N_CHARS = 2000
 
 class MyELECTRA:
 
