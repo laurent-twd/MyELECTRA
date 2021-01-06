@@ -88,21 +88,23 @@ class MyELECTRA:
 
         # Optimizer
 
-        gen_learning_rate = CustomSchedule(self.d_model)
-        disc_learning_rate = CustomSchedule(self.d_model)
-        self.generator_optimizer = tf.keras.optimizers.Adam(gen_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
-        self.discriminator_optimizer = tf.keras.optimizers.Adam(disc_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
+        if path_model is not None:
 
-        self.ckpt = tf.train.Checkpoint(generator = self.generator, 
-                                        discriminator = self.discriminator,
-                                        generator_optimizer = self.generator_optimizer,
-                                        discriminator_optimizer = self.discriminator_optimizer)
-        checkpoint_path = os.path.join(self.path_model, 'tf_ckpts')
-        self.ckpt_manager = tf.train.CheckpointManager(self.ckpt, checkpoint_path, max_to_keep=1)
+            gen_learning_rate = CustomSchedule(self.d_model)
+            disc_learning_rate = CustomSchedule(self.d_model)
+            self.generator_optimizer = tf.keras.optimizers.Adam(gen_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
+            self.discriminator_optimizer = tf.keras.optimizers.Adam(disc_learning_rate, beta_1 = 0.9, beta_2 = 0.999, epsilon = 1e-9)
+            
+            self.ckpt = tf.train.Checkpoint(generator = self.generator, 
+                                            discriminator = self.discriminator,
+                                            generator_optimizer = self.generator_optimizer,
+                                            discriminator_optimizer = self.discriminator_optimizer)
+            checkpoint_path = os.path.join(self.path_model, 'tf_ckpts')
+            self.ckpt_manager = tf.train.CheckpointManager(self.ckpt, checkpoint_path, max_to_keep=1)
 
-        if self.ckpt_manager.latest_checkpoint:
-            self.ckpt.restore(self.ckpt_manager.latest_checkpoint)
-            print ('Latest checkpoint restored!!')
+            if self.ckpt_manager.latest_checkpoint:
+                self.ckpt.restore(self.ckpt_manager.latest_checkpoint)
+                print ('Latest checkpoint restored from {}.'.format(self.ckpt_manager.latest_checkpoint))
 
     def get_index_word(self, word):
 
