@@ -305,7 +305,7 @@ class MyELECTRA:
             
         return gen_words
 
-    def fit(self, corpus, epochs, batch_size, masking_rate = 0.15, min_count = 1, STORAGE_BUCKET = None):
+    def fit(self, corpus, epochs, batch_size, masking_rate = 0.15, min_count = 1, STORAGE_INFO = None):
         
         """
         Fits the model:
@@ -406,10 +406,10 @@ class MyELECTRA:
                 discriminator_loss = self.train_step_discriminator(gen_words, gen_chars, enc_padding_mask, adversarial_mask, unkown_tokens_mask)
                 progbar.add(inp_words.shape[0], values = [('Gen. Loss', generator_loss), ('Disc. Loss', discriminator_loss)])
                 iterations += 1
-                if (iterations % 5000) == 0 and STORAGE_BUCKET != None:
+                if (iterations % 5000) == 0 and STORAGE_INFO != None:
                     self.ckpt_manager.save()
                     self.save_model()
-                    self.upload_to_cloud(STORAGE_BUCKET)
+                    self.upload_to_cloud(STORAGE_INFO)
             self.ckpt_manager.save()
 
 
