@@ -14,6 +14,7 @@ import itertools
 from encoder import BertEncoder
 from optimizer.custom_schedule import CustomSchedule
 from utilities.utils import create_padding_mask
+from utilities.aws_utils import get_client
 
 MAX_VOCAB_SIZE = 125000
 MAX_N_CHARS = 2000
@@ -438,9 +439,14 @@ class MyELECTRA:
 
         return parameters
 
-    def upload_to_cloud(self, STORAGE_BUCKET):
-        command = "gsutil -m cp -r {} {}".format(os.path.join(self.path_model, "tf_ckpts"), STORAGE_BUCKET)
-        os.system(command)
+    def upload_to_cloud(self, STORAGE_INFO):
+        user = STORAGE_INFO['user']
+        bucket = STORAGE_INFO['bucket']
 
-        command = "gsutil -m cp -r {} {}".format(os.path.join(self.path_model, "parameters.json"), STORAGE_BUCKET)
-        os.system(command)
+        s3client = get_client()
+        for root,dirs,files in os.walk(self.path_model):
+            for f in files:
+                key='/'.join(['selfserv', user, 'my-models', root, f])
+                print(key)
+                s3client.upload_file(Filename = os.path.join(root, f), Bucket = bucket, Key = key) 
+                
