@@ -15,6 +15,7 @@ from encoder import BertEncoder
 from optimizer.custom_schedule import CustomSchedule
 from utilities.utils import create_padding_mask
 from utilities.aws_utils import get_client
+from utilities.tokenizer import MyTokenizer
 
 MAX_VOCAB_SIZE = 125000
 MAX_N_CHARS = 2000
@@ -254,6 +255,20 @@ class MyELECTRA:
         unkown_tokens_mask = tf.cast(tf.not_equal(tar_words, 3), dtype = tf.float32)
 
         return gen_words, gen_chars, adversarial_mask, unkown_tokens_mask
+
+    def get_input_encoder(self, batch_of_text):
+
+        tk = MyTokenizer().tokenize
+        batch_of_text = [['[CLS]'] + tk(sentence)[:(self.pe_input-2)] + ['[SEP]'] for sentence in batch_of_text]
+        batch_of_indexes = list(map(lambda l: list(map(lambda x: self.get_index_word(x), l)), batch_of_text))    
+        max_len_char = 25
+        max_len = self.pe_input
+        inp_chars = list(map(lambda x: self.pad_char(x, max_len, max_len_char)[tf.newaxis, :, :], batch_of_text))
+        inp_chars = tf.concat(inp_chars, axis = 0)
+        inp_words = tf.cast(tf.keras.preprocessing.sequence.pad_sequences(batch_of_indexes, maxlen = max_len, padding = 'post'), tf.int32)
+        enc_padding_mask = create_padding_mask(inp_words)
+
+        return dict(zip(['inp_chars', 'enc_padding_mask', 'inp_tokens'], [inp_chars, enc_padding_mask, batch_of_text]))
 
     @tf.function
     def train_step_generator(self, inp_words, inp_chars, tar_words, language_mask):
