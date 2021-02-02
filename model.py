@@ -406,13 +406,13 @@ class MyELECTRA:
                 discriminator_loss = self.train_step_discriminator(gen_words, gen_chars, enc_padding_mask, adversarial_mask, unkown_tokens_mask)
                 progbar.add(inp_words.shape[0], values = [('Gen. Loss', generator_loss), ('Disc. Loss', discriminator_loss)])
                 iterations += 1
-                if (iterations % 5000) == 0 and STORAGE_INFO != None:
+                if (iterations % 5000) == 0 and STORAGE_INFO:
                     self.ckpt_manager.save()
-                    self.save_model()
                     self.upload_to_cloud(STORAGE_INFO)
-            self.ckpt_manager.save()
-
-
+            if STORAGE_INFO:
+                self.ckpt_manager.save()
+                self.upload_to_cloud(STORAGE_INFO)
+        
     def save_model(self):
         
         """
@@ -442,11 +442,12 @@ class MyELECTRA:
     def upload_to_cloud(self, STORAGE_INFO):
         user = STORAGE_INFO['user']
         bucket = STORAGE_INFO['bucket']
+        name = STORAGE_INFO['name']
 
         s3client = get_client()
-        for root,dirs,files in os.walk(self.path_model):
+        for root, _, files in os.walk(self.path_model):
             for f in files:
-                key='/'.join(['selfserv', user, 'my-models', root, f])
+                key='/'.join(['selfserv', user, name, root, f])
                 print(key)
                 s3client.upload_file(Filename = os.path.join(root, f), Bucket = bucket, Key = key) 
                 
